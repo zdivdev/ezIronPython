@@ -2,14 +2,25 @@ import clr
 clr.AddReference("System.Windows.Forms")
 clr.AddReference("System.Drawing")
 
-from System.Windows.Forms import Application, Form, MenuStrip, StatusBar
 #from System.Windows.Forms import Shortcut, MainMenu, MenuItem
+from System.Windows.Forms import Application, Form
+from System.Windows.Forms import MenuStrip, StatusBar
 from System.Windows.Forms import ToolStripContainer, TextImageRelation
 from System.Windows.Forms import ToolStripMenuItem, ToolStripSeparator
-from System.Windows.Forms import ToolStrip, ToolStripButton, ToolStripItemDisplayStyle
+from System.Windows.Forms import ToolStrip, ToolStripButton, ToolStripLabel, ToolStripTextBox
+from System.Windows.Forms import BorderStyle, ToolStripItemDisplayStyle
 from System.Drawing import Size, Image, Point
 
 _window__ctrl_table = {}
+
+#
+# Controls
+#
+
+class Control():
+    def __init__(self):
+        self.Dock = DockStyle.Fill
+        self.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right
 
 #
 # Windows
@@ -49,15 +60,24 @@ def EzToolBar(parent,toolbar_table):
         if not m.get('name') or m['name'] == '-':
             toolbar.Items.Add(ToolStripSeparator())
             continue
-        if not m.get('handler'): continue # Disabled
         if m['name'] == "Button":
             item = ToolStripButton()
-            item.Click += m['handler']
+            if m.get('handler'): item.Click += m['handler']
             if m.get('label'): item.Text = m['label']
             if m.get('icon'):  item.Image = Image.FromFile(m['icon'])
             item.DisplayStyle = ToolStripItemDisplayStyle.ImageAndText;
             item.TextImageRelation = TextImageRelation.ImageAboveText;
-            toolbar.Items.Add(item)        
+        elif m['name'] == "Label":
+            item = ToolStripLabel()
+            if m.get('label'): item.Text = m['label']
+        elif m['name'] == 'TextBox':
+            item = ToolStripTextBox()
+            if m.get('handler'): item.KeyDown += m['handler']
+            if m.get('text'): item.Text += m['text']
+            item.BorderStyle = BorderStyle.FixedSingle;
+        else:
+            continue      
+        toolbar.Items.Add(item)
     return toolbar
 
 def EzStatusBar(parent):
@@ -103,6 +123,8 @@ class MonoApp(Window):
                     { 'name' : "About", 'item' : self.onAbout, 'check' : True, 'icon' : 'new.ico' } ]
             }]
         self.tool = [
+                { "name" : "Label",   "label" : "File:",  },
+                { "name" : "TextBox", "handler" : self.onExit,   },
                 { "name" : "Button",  "label" : "Exit", 'icon' : 'exit.png', "handler" : self.onExit, "tooltip" : "Quit"  },
             ]
         self.content = [ # vbox
