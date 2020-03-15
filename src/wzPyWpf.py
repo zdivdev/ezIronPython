@@ -7,6 +7,7 @@ clr.AddReference('System.Data')
 import System.Windows
 from System.Windows import Thickness
 from System.Windows import TextWrapping
+from System.Windows import HorizontalAlignment
 from System.Windows import VerticalAlignment
 
 from System.Windows.Controls import Grid
@@ -247,7 +248,20 @@ class EzVBox(EzGrid):
         Grid.SetRow(item, self.rows);
         self.ctrl.Children.Add(item)
         self.rows = self.rows + 1
-                
+    def AddSplitter(self,width=1):
+        from System.Windows.Controls import GridSplitter
+        item = GridSplitter()
+        item.HorizontalAlignment = HorizontalAlignment.Stretch
+        item.VerticalAlignment = VerticalAlignment.Center
+        item.ShowsPreview = True
+        item.Height = 5
+          
+        length = GridLength(width, GridUnitType.Auto)
+        self.ctrl.RowDefinitions.Add(RowDefinition(Height = length))
+        Grid.SetRow(item, self.rows);
+        self.ctrl.Children.Add(item)
+        self.rows = self.rows + 1
+                 
 class EzHBox(EzGrid):
     def __init__(self):
         self.ctrl = System.Windows.Controls.Grid()
@@ -259,7 +273,19 @@ class EzHBox(EzGrid):
         Grid.SetColumn(item, self.cols);
         self.ctrl.Children.Add(item)
         self.cols = self.cols + 1
-        
+    def AddSplitter(self,width=1):
+        from System.Windows.Controls import GridSplitter
+        item = GridSplitter()
+        item.HorizontalAlignment = HorizontalAlignment.Center
+        item.VerticalAlignment = VerticalAlignment.Stretch
+        item.ShowsPreview = True
+        item.Width = 5
+          
+        length = GridLength(width, GridUnitType.Auto)
+        self.ctrl.ColumnDefinitions.Add(ColumnDefinition(Width = length))
+        Grid.SetColumn(item, self.cols);
+        self.ctrl.Children.Add(item)
+        self.cols = self.cols + 1
                         
 class EzBox():
     def __init__(self):
@@ -288,8 +314,32 @@ class EzTabPane():
         tab.Header = label
         tab.Content = layout
         self.ctrl.Items.Add(tab)
-    def GetValue(self): return self.ctrl.SelectedItem
-    
+
+class EzHSplitPane():
+    def __init__(self,h):
+        self.box = EzHBox()
+        self.ctrl = self.box.ctrl
+        self.ctrl.Margin =  System.Windows.Thickness(15)
+        items = h.get('items')
+        width = [ 1, 1 ]
+        if h.get('first'):
+            width[0] = float(h['first']) * 10
+            width[1] = 10 - width[0]
+        print( width[0], width[1] )    
+        self.box.AddItem(EzLayout(items[0]),width[0],expand=True)
+        self.box.AddSplitter()
+        self.box.AddItem(EzLayout(items[1]),width[1],expand=True)  
+
+class EzVSplitPane():
+    def __init__(self,h):
+        self.box = EzVBox()
+        self.ctrl = self.box.ctrl
+        self.ctrl.Margin =  System.Windows.Thickness(15)
+        items = h.get('items')
+        self.box.AddItem(EzLayout(items[0]),expand=True)
+        self.box.AddSplitter()
+        self.box.AddItem(EzLayout(items[1]),expand=True)  
+
 #
 # Dialog
 #
@@ -354,12 +404,14 @@ def EzLayout(content):
             elif name == 'Button': f = EzButton(h)
             elif name == 'CheckBox': f = EzCheckBox(h)
             elif name == 'TextField': f = EzTextBox(h)
+            elif name == 'TextArea': h['multiline'] = True; f = EzTextBox(h)
             elif name == 'ChoiceBox': f = EzChoiceBox(h)
             elif name == 'ComboBox': f = EzComboBox(h)
             elif name == 'ListBox': f = EzListBox(h)
             elif name == 'ListView': f = EzListView(h)
-            elif name == 'TextArea': h['multiline'] = True; f = EzTextBox(h)
             elif name == 'TabPane': f = EzTabPane(h)
+            elif name == 'HSplit': f = EzHSplitPane(h)
+            elif name == 'VSplit': f = EzVSplitPane(h)
             else: continue
             '''
             elif name == 'ImageView': f = EzImageView(h,parent)
@@ -404,7 +456,7 @@ class EzWindow(System.Windows.Window):
 # Application
 #
 
-class EzApp(EzWindow):
+class EzApp_(EzWindow):
     def __init__(self):
         self.SetTitle('EzIronPython Demo')
         self.SetSize(320, 240)
@@ -418,7 +470,7 @@ class EzApp(EzWindow):
        message.Content = 'Welcome to IronPython!'
        self.box.Add (message)
 
-class EzAppGrid(EzWindow):
+class EzIronApp(EzWindow):
     def __init__(self):
         self.init()
         self.menu = [
@@ -437,6 +489,12 @@ class EzAppGrid(EzWindow):
                 { 'expand' : True } ]]
         tab3 = [[ { "name" : "ListView", "columns" : [ "col1", "col2" ], 'widths' : [ 100, 200 ], 'expand' : True, 'key' : 'table', 'handler' : self.onListView },
                 { 'expand' : True } ]]
+        split1 = [[
+                { "name" : "TabPane", "labels" : [ "Tab1", "Tab2", "tab3" ], "items" : [ tab1, tab2, tab3 ], "expand" : True },
+                { "expand" : True }, ]]
+        split2 = [[ { "name" : "TextArea", 'key' : 'textarea', "expand" : True },
+                    { "expand" : True }, ]]
+              
         self.content = [ # vbox
             [ # hbox
                 { "name" : "Label", "label" : "Address:", "menu" : self.menu },
@@ -449,10 +507,9 @@ class EzAppGrid(EzWindow):
                 { "name" : "CheckBox", "label" : "Click Me", 'key' : 'check', 'handler' : self.onCheck },
             ], 
             [ # hbox
-                { "name" : "TabPane", "labels" : [ "Tab1", "Tab2", "tab3" ], "items" : [ tab1, tab2, tab3 ], "expand" : True },
+                { "name" : "HSplit", "items" : [ split1, split2 ] , "first" : 0.2, "expand" : True},
                 { "expand" : True },
-            ],      
-                   
+            ],     
         ]   
         self.SetCreatedHandler(self.onCreated)      
 
@@ -486,6 +543,6 @@ class EzAppGrid(EzWindow):
 
         
 if __name__ == "__main__":
-    appWin = EzAppGrid()
+    appWin = EzIronApp()
     appWin.Run("ezWpfPython", 640,400)
     
