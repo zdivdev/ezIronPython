@@ -42,22 +42,55 @@ from System.Data import DataView
 from System.Data import DataColumn
 from System.Type import GetType
 
+from Microsoft.Win32 import OpenFileDialog
+import System.IO
+
+#
+# Control Table
+#
+
 _window__ctrl_table = {}
 
 def GetControl(name):
-    if _window__ctrl_table.get(name): return _window__ctrl_table[name];
-    else: return None
+    return _window__ctrl_table.get(name)
 
 def GetWpfControl(name):
     if _window__ctrl_table.get(name): return _window__ctrl_table[name].ctrl;
-    else: return None
+
+def DumpControlTable():
+    for k,v in _window__ctrl_table.items():
+        print(k,v)
+        
+
+#
+# Dialog
+#
+
+def EzAlertDialog(message,title=None):
+    from System.Windows import MessageBox
+    if title: MessageBox.Show(message,title)
+    else: MessageBox.Show(message)
+
+def EzYesNoDialog(message,title,icon=System.Windows.MessageBoxImage.Information):
+    return MessageBox.Show(message,title,MessageBoxButton.YesNo,icon)
+
+def EzYesNoCancelDialog(message,title,icon=System.Windows.MessageBoxImage.Information):
+    return MessageBox.Show(message,title,MessageBoxButton.YesNoCancel,icon)
+
+def EzFileOpenDialog(initialFile=None,multiselect=False):
+    dlg = OpenFileDialog()
+    dlg.Multiselect = multiselect
+    dlg.Filter = "Text files (*.txt)|*.txt|All files (*.*)|*.*";
+    if initialFile: dlg.InitialDirectory = Directory.GetParent(initialFile) #Path.GetFileName(initialFile)
+    if dlg.ShowDialog() == True:
+        return dlg.FileNames 
 
 #
 # Controls
 #
 
 class EzControl():
-    def init(self,h):
+    def Initialize(self,h):
         if h.get('key'): _window__ctrl_table[h['key']] = self
         self.ctrl.Margin  = Thickness(5)
         self.ctrl.Padding = Thickness(5)
@@ -72,51 +105,33 @@ class EzControl():
 class EzLabel(EzControl):
     def __init__(self,h):
         self.ctrl = Label()
-        self.init(h)
+        self.Initialize(h)
         if h.get('label'): self.ctrl.Content = h['label']
         if h.get('fontsize'): self.SetFontSize(h['fontsize'])
         
 class EzButton(EzControl):
     def __init__(self,h):
         self.ctrl = Button()
-        self.init(h)
+        self.Initialize(h)
         if h.get('label'): self.ctrl.Content = h['label']
         if h.get('fontsize'): self.SetFontSize(h['fontsize'])
         if h.get('handler'): self.ctrl.Click += h['handler']
 
-'''
-VerticalAlignment="Top"
-Checked="CheckBox_Checked"
-Unchecked="CheckBox_Unchecked"/>
-
-TABLE 1
-Bottom  2
-Center  1
-Stretch 3
-Top     0
-'''
 class EzCheckBox(EzControl):
     def __init__(self,h):
         self.ctrl = CheckBox()
         self.ctrl.VerticalAlignment = VerticalAlignment.Center
         self.ctrl.VerticalContentAlignment = VerticalAlignment.Center
-        self.init(h)
+        self.Initialize(h)
         if h.get('label'): self.ctrl.Content = h['label']
         if h.get('fontsize'): self.SetFontSize(h['fontsize'])
         if h.get('handler'): self.ctrl.Click += h['handler']
     def GetValue(self): return self.ctrl.IsChecked
 
-
-'''
-TextBlock
-t.Inlines.Add(new Line { X1 = 0, Y1 = 0, X2 = 100, Y2 = 0, Stroke = new SolidColorBrush(Colors.Black), StrokeThickness = 4.0 });
-t.Inlines.Add("Hello there!");
-t.Inlines.Add(new Line { X1 = 0, Y1 = 0, X2 = 100, Y2 = 0, Stroke =  new SolidColorBrush(Colors.Black),StrokeThickness = 4.0});
-'''
 class EzTextBox(EzControl):
     def __init__(self,h):
         self.ctrl = TextBox()
-        self.init(h)
+        self.Initialize(h)
         if h.get('fontsize'): self.SetFontSize(h['fontsize'])
         if h.get('multiline'): 
             self.ctrl.AcceptsReturn = True
@@ -126,15 +141,13 @@ class EzTextBox(EzControl):
         self.ctrl.Text = ""
     def AppendText(self,text):
         self.ctrl.Text += text
+    def SetValue(self,text):
+        self.ctrl.Text = text
 
-'''
-combobox.SelectionChanged += OnSelectionChanged;
-combobox.DropDownOpened += OnDropDownOpened;
-'''
 class EzChoiceBox(EzControl):
     def __init__(self,h):
         self.ctrl = ComboBox()
-        self.init(h)
+        self.Initialize(h)
         self.init_ComboBox(h)
     def init_ComboBox(self,h):
         if h.get('fontsize'): self.SetFontSize(h['fontsize'])
@@ -148,22 +161,15 @@ class EzChoiceBox(EzControl):
 class EzComboBox(EzChoiceBox):
     def __init__(self,h):
         self.ctrl = ComboBox()
-        self.init(h)
+        self.Initialize(h)
         self.init_ComboBox(h)
         self.ctrl.IsEditable=True
         self.ctrl.IsReadOnly=False
 
-'''
-void PrintText(object sender, SelectionChangedEventArgs args)
-{
-    ListBoxItem lbi = ((sender as ListBox).SelectedItem as ListBoxItem);
-    tb.Text = "   You selected " + lbi.Content.ToString() + ".";
-}
-'''
 class EzListBox(EzControl):
     def __init__(self,h):
         self.ctrl = ListBox()
-        self.init(h)
+        self.Initialize(h)
         if h.get('fontsize'): self.SetFontSize(h['fontsize'])
         if h.get('handler'): self.ctrl.SelectionChanged += h['handler']
         if h.get('items'):
@@ -175,7 +181,7 @@ class EzListView(EzControl):
     def __init__(self,h):
         self.ctrl = ListView()
         self.table = DataTable('table')
-        self.init(h)
+        self.Initialize(h)
         if h.get('fontsize'): self.SetFontSize(h['fontsize'])
         if h.get('handler'): self.ctrl.SelectionChanged += h['handler']
         self.grid = GridView()
@@ -294,12 +300,6 @@ class EzBox():
     def Add(self,item):
         self.ctrl.Children.Add(item)
 
-'''var tabItem = new TabItem();
-tabItem.Header = "My Tab Header";
-tabItem.Content = new UserControl1();
-MainTabControl.Items.Add(tabItem); 
-'''
-
 class EzTabPane():
     def __init__(self,h):
         self.ctrl = TabControl()
@@ -339,23 +339,6 @@ class EzVSplitPane():
         self.box.AddItem(EzLayout(items[0]),expand=True)
         self.box.AddSplitter()
         self.box.AddItem(EzLayout(items[1]),expand=True)  
-
-#
-# Dialog
-#
-
-def EzAlertDialog(message,title=None):
-    from System.Windows import MessageBox
-    if title: MessageBox.Show(message,title)
-    else: MessageBox.Show(message)
-
-def EzYesNoDialog(message,title,icon=System.Windows.MessageBoxImage.Information):
-    return MessageBox.Show(message,title,MessageBoxButton.YesNo,icon)
-
-def EzYesNoCancelDialog(message,title,icon=System.Windows.MessageBoxImage.Information):
-    return MessageBox.Show(message,title,MessageBoxButton.YesNoCancel,icon)
-
-    
 #
 # Window
 #
@@ -408,7 +391,7 @@ def EzLayout(content):
             elif name == 'ChoiceBox': f = EzChoiceBox(h)
             elif name == 'ComboBox': f = EzComboBox(h)
             elif name == 'ListBox': f = EzListBox(h)
-            elif name == 'ListView': f = EzListView(h)
+            elif name == 'Table': f = EzListView(h)
             elif name == 'TabPane': f = EzTabPane(h)
             elif name == 'HSplit': f = EzHSplitPane(h)
             elif name == 'VSplit': f = EzVSplitPane(h)
@@ -419,17 +402,13 @@ def EzLayout(content):
             elif name == 'ToggleButton': f = EzToggleButton(h)
             elif name == 'TreeView': f = EzTreeView(h)
             elif name == 'ProgressBar': f = EzProgressBar(h)
-            elif name == 'Notebook': f = EzTabPane(h)
-            elif name == 'HSplit': f = EzHSplitPane(h)
-            elif name == 'VSplit': f = EzVSplitPane(h)
             '''            
-            print('hadd', h['name'])
             hbox.AddItem(f.ctrl,expand=h.get('expand'))
         vbox.AddItem(hbox.ctrl,expand=expand)
     return vbox.ctrl
 
 class EzWindow(System.Windows.Window):
-    def init(self):
+    def Initialize(self):
         self.createdHandler = None
     def Run(self,title,width,height):
         self.SetTitle(title)
@@ -456,23 +435,9 @@ class EzWindow(System.Windows.Window):
 # Application
 #
 
-class EzApp_(EzWindow):
+class EzApp(EzWindow):
     def __init__(self):
-        self.SetTitle('EzIronPython Demo')
-        self.SetSize(320, 240)
-        self.box = EzBox()
-        self.Content = self.box.ctrl
-        self.box.Add( EzButton("Push", self.onButtonClick ).ctrl )
-            
-    def onButtonClick(self, sender, args):
-       message = System.Windows.Controls.Label()
-       message.FontSize = 12
-       message.Content = 'Welcome to IronPython!'
-       self.box.Add (message)
-
-class EzIronApp(EzWindow):
-    def __init__(self):
-        self.init()
+        self.Initialize()
         self.menu = [
             { 'name' : "File",
               'item' : [
@@ -487,7 +452,7 @@ class EzIronApp(EzWindow):
                 { 'expand' : True } ]]
         tab2 = [[ { "name" : "ListBox", "items" : [ "apple", "grape" ], 'expand' : True, 'key' : 'listbox', 'handler' : self.onListBox },
                 { 'expand' : True } ]]
-        tab3 = [[ { "name" : "ListView", "columns" : [ "col1", "col2" ], 'widths' : [ 100, 200 ], 'expand' : True, 'key' : 'table', 'handler' : self.onListView },
+        tab3 = [[ { "name" : "Table", "columns" : [ "col1", "col2" ], 'widths' : [ 100, 200 ], 'expand' : True, 'key' : 'table', 'handler' : self.onListView },
                 { 'expand' : True } ]]
         split1 = [[
                 { "name" : "TabPane", "labels" : [ "Tab1", "Tab2", "tab3" ], "items" : [ tab1, tab2, tab3 ], "expand" : True },
@@ -498,8 +463,8 @@ class EzIronApp(EzWindow):
         self.content = [ # vbox
             [ # hbox
                 { "name" : "Label", "label" : "Address:", "menu" : self.menu },
-                { "name" : "TextField", "key" : "textlinea", "expand" : True, "menu" : self.menu },
-                { "name" : "Button", 'handler' : self.onAbout, "label" : "About", "tooltip" : "About this program" },
+                { "name" : "TextField", "key" : "textfile", "expand" : True, "menu" : self.menu },
+                { "name" : "Button", 'handler' : self.onBrowse, "label" : "Browse", "tooltip" : "About this program" },
             ],         
             [ # hbox
                 { "name" : "ChoiceBox", "items" : [ "apple", "grape" ], 'key' : 'choice', 'handler' : self.onChoice },
@@ -507,7 +472,7 @@ class EzIronApp(EzWindow):
                 { "name" : "CheckBox", "label" : "Click Me", 'key' : 'check', 'handler' : self.onCheck },
             ], 
             [ # hbox
-                { "name" : "HSplit", "items" : [ split1, split2 ] , "first" : 0.2, "expand" : True},
+                { "name" : "HSplit", "items" : [ split1, split2 ] , "first" : 0.5, "expand" : True},
                 { "expand" : True },
             ],     
         ]   
@@ -540,9 +505,12 @@ class EzIronApp(EzWindow):
         ctrl = GetControl('table')
         row = ctrl.GetValue()
         print(row['col1'], row['col2'])
-
+    def onBrowse(self, sender, args):
+        ctrl = GetControl('textfile')
+        files = EzFileOpenDialog()
+        if files: ctrl.SetValue(files[0])
         
 if __name__ == "__main__":
-    appWin = EzIronApp()
+    appWin = EzApp()
     appWin.Run("ezWpfPython", 640,400)
     
