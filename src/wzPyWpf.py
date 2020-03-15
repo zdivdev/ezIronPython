@@ -26,14 +26,19 @@ from System.Windows.Controls import Separator
 
 from System.Windows.Controls import Label
 from System.Windows.Controls import Button
+from System.Windows.Controls.Primitives import ToggleButton
 from System.Windows.Controls import CheckBox
 from System.Windows.Controls import TextBox
 from System.Windows.Controls import ComboBox
 from System.Windows.Controls import ListBox
 from System.Windows.Controls import ListView
 from System.Windows.Controls import ListViewItem
+from System.Windows.Controls import TreeView
+from System.Windows.Controls import TreeViewItem
+from System.Windows.Media import VisualTreeHelper
 from System.Windows.Controls import GridView
 from System.Windows.Controls import GridViewColumn
+
 from System.Windows.Data import Binding
 
 import System.Data
@@ -117,6 +122,15 @@ class EzButton(EzControl):
         if h.get('fontsize'): self.SetFontSize(h['fontsize'])
         if h.get('handler'): self.ctrl.Click += h['handler']
 
+class EzToggleButton(EzControl):
+    def __init__(self,h):
+        self.ctrl = ToggleButton()
+        self.Initialize(h)
+        if h.get('label'): self.ctrl.Content = h.get('label')
+        if h.get('handler'): self.ctrl.Click += h['handler'] 
+    def IsSelected(self):
+        return self.ctrl.IsChecked
+     
 class EzCheckBox(EzControl):
     def __init__(self,h):
         self.ctrl = CheckBox()
@@ -177,7 +191,7 @@ class EzListBox(EzControl):
             self.ctrl.SelectedIndex = 0
     def GetValue(self): return self.ctrl.SelectedItem
 
-class EzListView(EzControl):
+class EzTableView(EzControl):
     def __init__(self,h):
         self.ctrl = ListView()
         self.table = DataTable('table')
@@ -220,7 +234,42 @@ class EzListView(EzControl):
     def GetValue(self): 
         return self.ctrl.SelectedItem
 
-            
+class EzTreeView(EzControl):
+    def __init__(self,h):
+        self.root = TreeViewItem()
+        self.root.Header = h['name']
+        self.ctrl = TreeView()
+        self.ctrl.Items.Add(self.root)
+        self.Initialize(h)
+        if h.get('handler'): self.ctrl.SelectedItemChanged  += h['handler']
+    def AddRootItem(self,label):
+        return self.AddItem(label)
+    def AddItem(self,label,parent=None):
+        item = TreeViewItem()
+        item.Header = label
+        if parent: parent.Items.Add(item)
+        else: self.root.Items.Add(item)
+        return item
+    def GetSelectedIndex(self):
+        pass
+    def GetSelectedItem(self):
+        return self.ctrl.SelectedItem
+    def GetSelectedItemText(self):
+        return self.ctrl.SelectedItem.Header.ToString()
+    def GetSelectedItemPath(self,delim=""):
+        item = self.ctrl.SelectedItem
+        return self.GetItemPath(item,delim)
+    def GetItemPath(self,item,delim=""):
+        path = item.Header.ToString()
+        while type(item.Parent) == TreeViewItem:
+            item = item.Parent
+            path = item.Header.ToString() + delim + path
+        return path
+    def GetParentItem(self,item):
+        return item.Parent
+    def GetItemValue(self,item):
+        return item.ToString()
+        
 #
 # Containers
 #
@@ -385,13 +434,15 @@ def EzLayout(content):
                 continue
             if   name == 'Label': f = EzLabel(h)
             elif name == 'Button': f = EzButton(h)
+            elif name == 'ToggleButton': f = EzToggleButton(h)
             elif name == 'CheckBox': f = EzCheckBox(h)
             elif name == 'TextField': f = EzTextBox(h)
             elif name == 'TextArea': h['multiline'] = True; f = EzTextBox(h)
             elif name == 'ChoiceBox': f = EzChoiceBox(h)
             elif name == 'ComboBox': f = EzComboBox(h)
             elif name == 'ListBox': f = EzListBox(h)
-            elif name == 'Table': f = EzListView(h)
+            elif name == 'TreeView': f = EzTreeView(h)
+            elif name == 'Table': f = EzTableView(h)
             elif name == 'TabPane': f = EzTabPane(h)
             elif name == 'HSplit': f = EzHSplitPane(h)
             elif name == 'VSplit': f = EzVSplitPane(h)
@@ -399,8 +450,6 @@ def EzLayout(content):
             '''
             elif name == 'ImageView': f = EzImageView(h,parent)
             elif name == 'ScrollImageView': f = EzScrollImageView(h,parent)
-            elif name == 'ToggleButton': f = EzToggleButton(h)
-            elif name == 'TreeView': f = EzTreeView(h)
             elif name == 'ProgressBar': f = EzProgressBar(h)
             '''            
             hbox.AddItem(f.ctrl,expand=h.get('expand'))
@@ -454,8 +503,10 @@ class EzApp(EzWindow):
                 { 'expand' : True } ]]
         tab3 = [[ { "name" : "Table", "columns" : [ "col1", "col2" ], 'widths' : [ 100, 200 ], 'expand' : True, 'key' : 'table', 'handler' : self.onListView },
                 { 'expand' : True } ]]
+        tab4 = [[ { "name" : "TreeView", "key" : "tree", 'handler' : self.onTreeView,"expand" : True },
+                  { "expand" : True }, ]]
         split1 = [[
-                { "name" : "TabPane", "labels" : [ "Tab1", "Tab2", "tab3" ], "items" : [ tab1, tab2, tab3 ], "expand" : True },
+                { "name" : "TabPane", "labels" : [ "Text", "List", "Table", "Tree" ], "items" : [ tab1, tab2, tab3, tab4 ], "expand" : True },
                 { "expand" : True }, ]]
         split2 = [[ { "name" : "TextArea", 'key' : 'textarea', "expand" : True },
                     { "expand" : True }, ]]
@@ -470,6 +521,7 @@ class EzApp(EzWindow):
                 { "name" : "ChoiceBox", "items" : [ "apple", "grape" ], 'key' : 'choice', 'handler' : self.onChoice },
                 { "name" : "ComboBox", "items" : [ "apple", "grape" ] },
                 { "name" : "CheckBox", "label" : "Click Me", 'key' : 'check', 'handler' : self.onCheck },
+                { "name" : "ToggleButton", "label" : "Toggle", 'key' : 'toggle', 'handler' : self.onToggle },
             ], 
             [ # hbox
                 { "name" : "HSplit", "items" : [ split1, split2 ] , "first" : 0.5, "expand" : True},
@@ -483,6 +535,14 @@ class EzApp(EzWindow):
         listview.AddItem( { "col1":"row1-1", "col2":"row1-2" } )
         listview.AddItem( { "col1":"row2-1", "col2":"row2-2" } )
         listview.AddItem( { "col1":"row3-1", "col2":"row2-2" } )
+        tree = GetControl('tree')
+        item = tree.AddRootItem("Item1")
+        tree.AddItem("Item1-1",item)
+        tree.AddItem("Item1-2",item)
+        item = tree.AddRootItem("Item2")
+        tree.AddItem("Item2-1",item)
+        tree.AddItem("Item2-2",item)
+                
     def onExit(self, sender, args):
         System.Windows.Application.Current.Shutdown();
     def onAbout(self, sender, args):
@@ -509,7 +569,14 @@ class EzApp(EzWindow):
         ctrl = GetControl('textfile')
         files = EzFileOpenDialog()
         if files: ctrl.SetValue(files[0])
-        
+    def onToggle(self, sender, args):
+        ctrl = GetControl('toggle')
+        print('Toggle',ctrl.IsSelected())
+    def onTreeView(self, sender, args):
+        ctrl = GetControl('tree')
+        #item = args.NewValue
+        print('Treeview',ctrl.GetSelectedItemPath('/'))
+             
 if __name__ == "__main__":
     appWin = EzApp()
     appWin.Run("ezWpfPython", 640,400)
