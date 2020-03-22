@@ -4,11 +4,17 @@ clr.AddReferenceByName("PresentationFramework, Version=3.0.0.0, Culture=neutral,
 clr.AddReferenceByName("PresentationCore, Version=3.0.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35")
 clr.AddReference('System.Data')
 
+import System.Uri
 import System.Windows
+from System.Windows import Application
+from System.Windows import Window
 from System.Windows import Thickness
 from System.Windows import TextWrapping
 from System.Windows import HorizontalAlignment
 from System.Windows import VerticalAlignment
+
+from System.Windows.Controls import StackPanel
+from System.Windows.Controls import Orientation
 
 from System.Windows.Controls import Grid
 from System.Windows.Controls import RowDefinition
@@ -25,6 +31,7 @@ from System.Windows.Controls import ToolTip
 from System.Windows.Controls import Separator
 
 from System.Windows.Controls import Label
+from System.Windows.Controls import TextBlock
 from System.Windows.Controls import Button
 from System.Windows.Controls.Primitives import ToggleButton
 from System.Windows.Controls import CheckBox
@@ -38,6 +45,15 @@ from System.Windows.Controls import TreeViewItem
 from System.Windows.Media import VisualTreeHelper
 from System.Windows.Controls import GridView
 from System.Windows.Controls import GridViewColumn
+
+from System.Windows.Controls import ToolBar
+from System.Windows.Controls import Image
+from System.Windows import TextAlignment
+from System.Windows.Media import Stretch
+from System.Windows.Media.Imaging import BitmapImage
+
+from System.Windows.Controls.Primitives import StatusBar
+from System.Windows.Controls.Primitives import StatusBarItem
 
 from System.Windows.Data import Binding
 
@@ -97,8 +113,9 @@ def EzFileOpenDialog(initialFile=None,multiselect=False):
 class EzControl():
     def Initialize(self,h):
         if h.get('key'): _window__ctrl_table[h['key']] = self
+        if h.get('tooltip'): self.SetToolTip(h['tooltip'])
         self.ctrl.Margin  = Thickness(5)
-        self.ctrl.Padding = Thickness(5)
+        self.ctrl.Padding = Thickness(1)
     def SetMargin(self,l,t,r,b):
         self.ctrl.Margin = System.Windows.Thickness(l,t,r,b)
     def ShadowEffect(self):
@@ -106,6 +123,10 @@ class EzControl():
         self.ctrl.BitmapEffect = DropShadowBitmapEffect()
     def SetFontSize(self,size):
         self.ctrl.FontSize = size
+    def SetToolTip(self,tooltip):
+        tip = ToolTip()
+        tip.Content = tooltip
+        self.ctrl.ToolTip = tip
         
 class EzLabel(EzControl):
     def __init__(self,h):
@@ -118,9 +139,23 @@ class EzButton(EzControl):
     def __init__(self,h):
         self.ctrl = Button()
         self.Initialize(h)
-        if h.get('label'): self.ctrl.Content = h['label']
         if h.get('fontsize'): self.SetFontSize(h['fontsize'])
         if h.get('handler'): self.ctrl.Click += h['handler']
+        stack = StackPanel()
+        stack.Orientation = Orientation.Vertical #Horizontal
+        self.ctrl.Content = stack
+        if h.get('image'):
+            image = Image()
+            image.Source = BitmapImage(System.Uri(h['image'],System.UriKind.Relative))
+            image.VerticalAlignment = VerticalAlignment.Center
+            image.Stretch = Stretch.Fill #Stretch.None
+            if h.get('size'): image.Height = float(h['size']);  image.Width = float(h['size'])
+            stack.Children.Add(image)
+        if h.get('label'): 
+            text = TextBlock()
+            text.Text = h['label']
+            text.TextAlignment = TextAlignment.Center
+            stack.Children.Add(text);            
 
 class EzToggleButton(EzControl):
     def __init__(self,h):
@@ -146,6 +181,7 @@ class EzTextBox(EzControl):
     def __init__(self,h):
         self.ctrl = TextBox()
         self.Initialize(h)
+        if h.get('width'): self.SetWidth(h['width'])
         if h.get('fontsize'): self.SetFontSize(h['fontsize'])
         if h.get('multiline'): 
             self.ctrl.AcceptsReturn = True
@@ -153,10 +189,14 @@ class EzTextBox(EzControl):
             self.ctrl.TextWrapping = TextWrapping.Wrap
     def Clear(self):
         self.ctrl.Text = ""
-    def AppendText(self,text):
-        self.ctrl.Text += text
+    def GetValue(self):
+        return self.ctrl.Text
     def SetValue(self,text):
         self.ctrl.Text = text
+    def AppendText(self,text):
+        self.ctrl.Text += text
+    def SetWidth(self,width):
+        self.ctrl.Width = width
 
 class EzChoiceBox(EzControl):
     def __init__(self,h):
@@ -422,6 +462,45 @@ def EzMenuBar(menu_table):
         ctrl.Items.Add(EzMenu(m['name'],m['item']).ctrl) 
     return ctrl
 
+def EzToolBar(tool_table):
+    tools = []
+    for v in tool_table:
+        ctrl = ToolBar()
+        ctrl.HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch;
+        ctrl.VerticalAlignment = System.Windows.VerticalAlignment.Bottom;
+        for h in v:
+            name  = h['name']
+            f = None
+            if   name == 'Label': f = EzLabel(h)
+            elif name == 'Button': f = EzButton(h)     
+            elif name == 'ToggleButton': f = EzToggleButton(h)
+            elif name == 'CheckBox': f = EzCheckBox(h)
+            elif name == 'TextField': f = EzTextBox(h)
+            elif name == 'ChoiceBox': f = EzChoiceBox(h)
+            elif name == 'ComboBox': f = EzComboBox(h)
+            if f: ctrl.Items.Add(f.ctrl)
+        tools.append(ctrl)
+    return tools
+
+def EzStatusBar(status_table):
+    ctrl = StatusBar()
+    ctrl.HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch;
+    ctrl.VerticalAlignment = System.Windows.VerticalAlignment.Bottom;
+    for h in status_table:
+        if h.get('name'):
+            name  = h['name']
+            if   name == 'Label': f = EzLabel(h)
+            elif name == 'Button': f = EzButton(h)
+            elif name == 'ToggleButton': f = EzToggleButton(h)
+            elif name == 'CheckBox': f = EzCheckBox(h)
+            elif name == 'TextField': f = EzTextBox(h)
+            elif name == 'ChoiceBox': f = EzChoiceBox(h)
+            elif name == 'ComboBox': f = EzComboBox(h)
+            item = StatusBarItem()
+            item.Content = f.ctrl        
+            ctrl.Items.Add(item)
+    return ctrl
+
 def EzLayout(content):
     vbox = EzVBox()
     for v in content:
@@ -456,128 +535,144 @@ def EzLayout(content):
         vbox.AddItem(hbox.ctrl,expand=expand)
     return vbox.ctrl
 
-class EzWindow(System.Windows.Window):
-    def Initialize(self):
+class EzWindow(Window):  
+    def __init__(self,title="",width=800,height=600):
         self.createdHandler = None
-    def Run(self,title,width,height):
         self.SetTitle(title)
         self.SetSize(width, height)
-
+    def Run(self):
         self.box = EzVBox()
         if self.menu: self.box.AddItem(EzMenuBar(self.menu),expand=False)
+        if self.tool:
+            for tool in EzToolBar(self.tool):
+                self.box.AddItem(tool,expand=False)
         if self.content: self.box.AddItem(EzLayout(self.content),expand=True)
-    
+        if self.status: self.box.AddItem(EzStatusBar(self.status),expand=False)
         self.Content = self.box.ctrl
         if self.createdHandler: self.createdHandler()           
-        
-        System.Windows.Application().Run(self) 
-        
+        Application().Run(self) 
     def SetTitle(self,title):
         self.Title = title
     def SetSize(self,width,height):
         self.Width = width
         self.Height = height
-    def SetCreatedHandler(self,handler):
-        self.createdHandler = handler
+    def SetCreatedHandler(self,handler): self.createdHandler = handler
+    def SetMenuBar(self,menu): self.menu = menu
+    def SetToolBar(self,tool): self.tool = tool
+    def SetStatusBar(self,status): self.status = status
+    def SetContent(self,content): self.content = content
         
 #
 # Application
 #
 
-class EzApp(EzWindow):
-    def __init__(self):
-        self.Initialize()
-        self.menu = [
-            { 'name' : "File",
-              'item' : [
-                    { 'name' : "Exit" , 'item' : self.onExit, 'icon' : 'exit.png', 'tooltip' : 'Exit Program' },
-                    { 'name' : "-" ,  },
-                    { 'name' : "About" , 'item' : self.onAbout, 'icon' : 'exit.png' } ]
-            }, { 'name' : "Help",
-              'item' : [
-                    { 'name' : "About", 'item' : self.onAbout, 'check' : True, 'icon' : 'new.png' } ]
-            }]
-        tab1 = [[ { "name" : "TextArea", "key" : "text", "expand" : True },
-                { 'expand' : True } ]]
-        tab2 = [[ { "name" : "ListBox", "items" : [ "apple", "grape" ], 'expand' : True, 'key' : 'listbox', 'handler' : self.onListBox },
-                { 'expand' : True } ]]
-        tab3 = [[ { "name" : "Table", "columns" : [ "col1", "col2" ], 'widths' : [ 100, 200 ], 'expand' : True, 'key' : 'table', 'handler' : self.onListView },
-                { 'expand' : True } ]]
-        tab4 = [[ { "name" : "TreeView", "key" : "tree", 'handler' : self.onTreeView,"expand" : True },
-                  { "expand" : True }, ]]
-        split1 = [[
-                { "name" : "TabPane", "labels" : [ "Text", "List", "Table", "Tree" ], "items" : [ tab1, tab2, tab3, tab4 ], "expand" : True },
-                { "expand" : True }, ]]
-        split2 = [[ { "name" : "TextArea", 'key' : 'textarea', "expand" : True },
-                    { "expand" : True }, ]]
-              
-        self.content = [ # vbox
-            [ # hbox
-                { "name" : "Label", "label" : "Address:", "menu" : self.menu },
-                { "name" : "TextField", "key" : "textfile", "expand" : True, "menu" : self.menu },
-                { "name" : "Button", 'handler' : self.onBrowse, "label" : "Browse", "tooltip" : "About this program" },
-            ],         
-            [ # hbox
-                { "name" : "ChoiceBox", "items" : [ "apple", "grape" ], 'key' : 'choice', 'handler' : self.onChoice },
-                { "name" : "ComboBox", "items" : [ "apple", "grape" ] },
-                { "name" : "CheckBox", "label" : "Click Me", 'key' : 'check', 'handler' : self.onCheck },
-                { "name" : "ToggleButton", "label" : "Toggle", 'key' : 'toggle', 'handler' : self.onToggle },
-            ], 
-            [ # hbox
-                { "name" : "HSplit", "items" : [ split1, split2 ] , "first" : 0.5, "expand" : True},
-                { "expand" : True },
-            ],     
-        ]   
-        self.SetCreatedHandler(self.onCreated)      
-
-    def onCreated(self):
-        listview = GetControl('table')
-        listview.AddItem( { "col1":"row1-1", "col2":"row1-2" } )
-        listview.AddItem( { "col1":"row2-1", "col2":"row2-2" } )
-        listview.AddItem( { "col1":"row3-1", "col2":"row2-2" } )
-        tree = GetControl('tree')
-        item = tree.AddRootItem("Item1")
-        tree.AddItem("Item1-1",item)
-        tree.AddItem("Item1-2",item)
-        item = tree.AddRootItem("Item2")
-        tree.AddItem("Item2-1",item)
-        tree.AddItem("Item2-2",item)
-                
-    def onExit(self, sender, args):
-        System.Windows.Application.Current.Shutdown();
-    def onAbout(self, sender, args):
-        EzAlertDialog("Hello, world!", "My App");
-    def onChoice(self, sender, args):
-        ctrl = GetControl('choice')
-        text = GetControl('text')
-        if text and ctrl: text.AppendText("Selected: " + ctrl.GetAddedItem(args) + "\n")
-    def onCheck(self, sender, args):
-        ctrl = GetControl('check')
-        text = GetControl('text')
-        if text and ctrl: 
-            text.AppendText("Checked: " + ctrl.GetValue().ToString() + "\n")
-    def onListBox(self, sender, args):
-        ctrl = GetControl('listbox')
-        text = GetControl('text')
-        if text and ctrl: 
-            text.AppendText("List Selected: " + ctrl.GetValue().ToString() + "\n")
-    def onListView(self, sender, args):
-        ctrl = GetControl('table')
-        row = ctrl.GetValue()
-        print(row['col1'], row['col2'])
-    def onBrowse(self, sender, args):
-        ctrl = GetControl('textfile')
-        files = EzFileOpenDialog()
-        if files: ctrl.SetValue(files[0])
-    def onToggle(self, sender, args):
-        ctrl = GetControl('toggle')
-        print('Toggle',ctrl.IsSelected())
-    def onTreeView(self, sender, args):
-        ctrl = GetControl('tree')
-        #item = args.NewValue
-        print('Treeview',ctrl.GetSelectedItemPath('/'))
-             
-if __name__ == "__main__":
-    appWin = EzApp()
-    appWin.Run("ezWpfPython", 640,400)
+def onCreated():
+    listview = GetControl('table')
+    listview.AddItem( { "col1":"row1-1", "col2":"row1-2" } )
+    listview.AddItem( { "col1":"row2-1", "col2":"row2-2" } )
+    listview.AddItem( { "col1":"row3-1", "col2":"row2-2" } )
+    tree = GetControl('tree')
+    item = tree.AddRootItem("Item1")
+    tree.AddItem("Item1-1",item)
+    tree.AddItem("Item1-2",item)
+    item = tree.AddRootItem("Item2")
+    tree.AddItem("Item2-1",item)
+    tree.AddItem("Item2-2",item)
+def onExit(sender, args):
+    System.Windows.Application.Current.Shutdown();
+def onAbout(sender, args):
+    EzAlertDialog("Hello, world!", "My App");
+def printText(text):
+    ctrl = GetControl('text')
+    if ctrl: ctrl.AppendText(text)
+def onChoice(sender, args):
+    ctrl = GetControl('choice')
+    if ctrl: printText("Selected: " + ctrl.GetAddedItem(args) + "\n")
+def onCheck(sender, args):
+    ctrl = GetControl('check')
+    if ctrl: printText("Checked: " + ctrl.GetValue().ToString() + "\n")
+def onListBox(sender, args):
+    ctrl = GetControl('listbox')
+    if ctrl: printText("List Selected: " + ctrl.GetValue().ToString() + "\n")
+def onListView(sender, args):
+    ctrl = GetControl('table')
+    row = ctrl.GetValue()
+    print(row['col1'], row['col2'])
+def onBrowse(sender, args):
+    ctrl = GetControl('textfile')
+    files = EzFileOpenDialog()
+    if files: ctrl.SetValue(files[0])
+def onToggle(sender, args):
+    ctrl = GetControl('toggle')
+    if ctrl: printText('Toggle: ' + str(ctrl.IsSelected()))
+def onTreeView(sender, args):
+    ctrl = GetControl('tree')
+    if ctrl: printText('Treeview: ' + str(ctrl.GetSelectedItemPath('/')))
+         
+app_mainmenu = [
+    { 'name' : "File",
+      'item' : [
+            { 'name' : "Exit" , 'item' : onExit, 'icon' : 'exit.png', 'tooltip' : 'Exit Program' },
+            { 'name' : "-" ,  },
+            { 'name' : "About" , 'item' : onAbout, 'icon' : 'exit.png' } ]
+    }, { 'name' : "Help",
+      'item' : [
+            { 'name' : "About", 'item' : onAbout, 'check' : True, 'icon' : 'new.png' } ]
+    }]
+app_tool = [[
+        { "name" : "Button", "label" : "Click", "image" : "./icon/folder512.png", 'size' : 32  },
+    ],[
+        { "name" : "ChoiceBox", "items" : [ "apple", "grape" ], 'key' : 'choicetool', 'handler' : onChoice },
+        { "name" : "ComboBox", "items" : [ "apple", "grape" ] },
+        { "name" : "Label", "label" : "Address:", "menu" : app_mainmenu },
+        { "name" : "TextField", "key" : "textfile", 'width' : 40 },
+        { "name" : "Button", 'handler' : onBrowse, "label" : "Browse", "tooltip" : "About this program" },
+        { "name" : "ToggleButton", "label" : "Toggle", 'key' : 'toggle', 'handler' : onToggle },
+    ], 
+]
+app_status = [
+        { "name" : "Label", "label" : "Ready" },
+        { "name" : "Button", "label" : "Click" },
+    ]
     
+tab1 = [[ { "name" : "TextArea", "key" : "text", "expand" : True },
+        { 'expand' : True } ]]
+tab2 = [[ { "name" : "ListBox", "items" : [ "apple", "grape" ], 'expand' : True, 'key' : 'listbox', 'handler' : onListBox },
+        { 'expand' : True } ]]
+tab3 = [[ { "name" : "Table", "columns" : [ "col1", "col2" ], 'widths' : [ 100, 200 ], 'expand' : True, 'key' : 'table', 'handler' : onListView },
+        { 'expand' : True } ]]
+tab4 = [[ { "name" : "TreeView", "key" : "tree", 'handler' : onTreeView,"expand" : True },
+          { "expand" : True }, ]]
+split1 = [[
+        { "name" : "TabPane", "labels" : [ "Text", "List", "Table", "Tree" ], "items" : [ tab1, tab2, tab3, tab4 ], "expand" : True },
+        { "expand" : True }, ]]
+split2 = [[ { "name" : "TextArea", 'key' : 'textarea', "expand" : True },
+            { "expand" : True }, ]]
+      
+app_content = [ # vbox
+    [ # hbox
+        { "name" : "Label", "label" : "Address:", "menu" : app_mainmenu },
+        { "name" : "TextField", "key" : "textfile", "expand" : True, "menu" : app_mainmenu },
+        { "name" : "Button", 'handler' : onBrowse, "label" : "Browse", "tooltip" : "About this program" },
+    ],         
+    [ # hbox
+        { "name" : "ChoiceBox", "items" : [ "apple", "grape" ], 'key' : 'choice', 'handler' : onChoice },
+        { "name" : "ComboBox", "items" : [ "apple", "grape" ] },
+        { "name" : "CheckBox", "label" : "Click Me", 'key' : 'check', 'handler' : onCheck },
+        { "name" : "ToggleButton", "label" : "Toggle", 'key' : 'toggle', 'handler' : onToggle },
+    ], 
+    [ # hbox
+        { "name" : "HSplit", "items" : [ split1, split2 ] , "first" : 0.5, "expand" : True},
+        { "expand" : True },
+    ],     
+]
+
+
+if __name__ == "__main__":
+    appWin = EzWindow("ezWpfPython", 640,400)
+    appWin.SetMenuBar(app_mainmenu)
+    appWin.SetToolBar(app_tool)
+    appWin.SetStatusBar(app_status)
+    appWin.SetContent(app_content)
+    appWin.SetCreatedHandler(onCreated)  
+    appWin.Run()
