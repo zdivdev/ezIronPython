@@ -5,9 +5,13 @@ clr.AddReferenceByName("PresentationCore, Version=3.0.0.0, Culture=neutral, Publ
 clr.AddReference('System.Data')
 
 import System.Uri
+import System.Timers
+import System.Threading
+from System.Threading.Tasks import Task
 import System.Windows
 from System.Windows import Application
 from System.Windows import Window
+from System.Windows import Visibility
 from System.Windows import Thickness
 from System.Windows import TextWrapping
 from System.Windows import HorizontalAlignment
@@ -45,6 +49,7 @@ from System.Windows.Controls import TreeViewItem
 from System.Windows.Media import VisualTreeHelper
 from System.Windows.Controls import GridView
 from System.Windows.Controls import GridViewColumn
+from System.Windows.Controls import ProgressBar
 
 from System.Windows.Controls import ToolBar
 from System.Windows.Controls import Image
@@ -65,6 +70,7 @@ from System.Type import GetType
 
 from Microsoft.Win32 import OpenFileDialog
 import System.IO
+
 
 #
 # Control Table
@@ -132,8 +138,10 @@ class EzLabel(EzControl):
     def __init__(self,h):
         self.ctrl = Label()
         self.Initialize(h)
-        if h.get('label'): self.ctrl.Content = h['label']
+        if h.get('label'): self.SetValue(h['label'])
         if h.get('fontsize'): self.SetFontSize(h['fontsize'])
+    def SetValue(self,text):
+        self.ctrl.Content = text
         
 class EzButton(EzControl):
     def __init__(self,h):
@@ -309,7 +317,27 @@ class EzTreeView(EzControl):
         return item.Parent
     def GetItemValue(self,item):
         return item.ToString()
-        
+
+class EzProgressBar(EzControl):
+    def __init__(self,h):   
+        self.ctrl = ProgressBar()
+        #self.ctrl.IsIndeterminate = True
+        #self.ctrl.Margin = new Thickness(10,0,10,10);
+        self.ctrl.Visibility = Visibility.Visible;
+        self.ctrl.Width = 100;
+        self.ctrl.Height = 16;
+        #self.ctrl.Foreground = System.Windows.Media.Brushes.Green;
+        #self.ctrl.Background = System.Windows.Media.Brushes.Red;
+        #self.ctrl.Style = ProgressBarStyle.Continuous #Marquee
+        self.ctrl.Maximum = 100
+        self.ctrl.Value = 0
+        #self.ctrl.FlowDirection = FlowDirection.LeftToRight
+        self.Initialize(h)
+    def GetValue(self):
+        return self.ctrl.Value
+    def SetValue(self,v):
+        self.ctrl.Value = v
+       
 #
 # Containers
 #
@@ -431,8 +459,34 @@ class EzVSplitPane():
 #
 # Window
 #
+'''
+def RunLater(handler):
+    from System import Action
+    System.Windows.Threading.DispatcherExtensions.BeginInvoke(
+        System.Windows.Threading.Dispatcher.CurrentDispatcher, Action(handler))
+'''
 
+def RunLater(ctrl,handler):
+    ctrl.Dispatcher.BeginInvoke(System.Action(handler))
+            
+def StartTimer(handler,msec):
+    aTimer = System.Timers.Timer(msec)
+    aTimer.Elapsed += handler
+    aTimer.AutoReset = True
+    #aTimer.Enabled = True
+    aTimer.Start()
+    #aTimer.Stop();
+    #aTimer.Dispose();
+           
+def StartThread(handler):
+    import threading
+    thread = threading.Thread(target=handler)
+    thread.daemon = True
+    thread.start()
 
+def StartTask(handler):
+    Task.Factory.StartNew(handler) 
+    
 class EzMenu():
     def __init__(self,name,menu_table):
         self.ctrl = MenuItem()
@@ -478,6 +532,7 @@ def EzToolBar(tool_table):
             elif name == 'TextField': f = EzTextBox(h)
             elif name == 'ChoiceBox': f = EzChoiceBox(h)
             elif name == 'ComboBox': f = EzComboBox(h)
+            elif name == 'ProgressBar': f = EzProgressBar(h)
             if f: ctrl.Items.Add(f.ctrl)
         tools.append(ctrl)
     return tools
@@ -496,6 +551,7 @@ def EzStatusBar(status_table):
             elif name == 'TextField': f = EzTextBox(h)
             elif name == 'ChoiceBox': f = EzChoiceBox(h)
             elif name == 'ComboBox': f = EzComboBox(h)
+            elif name == 'ProgressBar': f = EzProgressBar(h)
             item = StatusBarItem()
             item.Content = f.ctrl        
             ctrl.Items.Add(item)
@@ -516,9 +572,10 @@ def EzLayout(content):
             elif name == 'ToggleButton': f = EzToggleButton(h)
             elif name == 'CheckBox': f = EzCheckBox(h)
             elif name == 'TextField': f = EzTextBox(h)
-            elif name == 'TextArea': h['multiline'] = True; f = EzTextBox(h)
             elif name == 'ChoiceBox': f = EzChoiceBox(h)
             elif name == 'ComboBox': f = EzComboBox(h)
+            elif name == 'ProgressBar': f = EzProgressBar(h)
+            elif name == 'TextArea': h['multiline'] = True; f = EzTextBox(h)
             elif name == 'ListBox': f = EzListBox(h)
             elif name == 'TreeView': f = EzTreeView(h)
             elif name == 'Table': f = EzTableView(h)
@@ -566,18 +623,6 @@ class EzWindow(Window):
 # Application
 #
 
-def onCreated():
-    listview = GetControl('table')
-    listview.AddItem( { "col1":"row1-1", "col2":"row1-2" } )
-    listview.AddItem( { "col1":"row2-1", "col2":"row2-2" } )
-    listview.AddItem( { "col1":"row3-1", "col2":"row2-2" } )
-    tree = GetControl('tree')
-    item = tree.AddRootItem("Item1")
-    tree.AddItem("Item1-1",item)
-    tree.AddItem("Item1-2",item)
-    item = tree.AddRootItem("Item2")
-    tree.AddItem("Item2-1",item)
-    tree.AddItem("Item2-2",item)
 def onExit(sender, args):
     System.Windows.Application.Current.Shutdown();
 def onAbout(sender, args):
@@ -608,7 +653,45 @@ def onToggle(sender, args):
 def onTreeView(sender, args):
     ctrl = GetControl('tree')
     if ctrl: printText('Treeview: ' + str(ctrl.GetSelectedItemPath('/')))
-         
+
+progress_value = 0
+
+def threadHandler():
+    global progress_value
+    import time
+    label = GetControl('status')
+    for i in range(100):
+        progress_value += 1
+        RunLater(label.ctrl, lambda : label.SetValue(str(i)))
+        time.sleep(0.1)
+
+def taskHandler():
+    import time
+    prog = GetControl('progress')
+    for i in range(100):
+        RunLater(prog.ctrl, lambda : prog.SetValue(i))
+        time.sleep(0.1)
+
+def timerHandler(sender,args):
+    global progress_value
+    print(progress_value)
+    
+def onCreated():
+    listview = GetControl('table')
+    listview.AddItem( { "col1":"row1-1", "col2":"row1-2" } )
+    listview.AddItem( { "col1":"row2-1", "col2":"row2-2" } )
+    listview.AddItem( { "col1":"row3-1", "col2":"row2-2" } )
+    tree = GetControl('tree')
+    item = tree.AddRootItem("Item1")
+    tree.AddItem("Item1-1",item)
+    tree.AddItem("Item1-2",item)
+    item = tree.AddRootItem("Item2")
+    tree.AddItem("Item2-1",item)
+    tree.AddItem("Item2-2",item)
+    StartTimer(timerHandler,200)
+    StartThread(threadHandler)
+    StartTask(taskHandler)
+    
 app_mainmenu = [
     { 'name' : "File",
       'item' : [
@@ -631,7 +714,8 @@ app_tool = [[
     ], 
 ]
 app_status = [
-        { "name" : "Label", "label" : "Ready" },
+        { "name" : "ProgressBar", 'key' : 'progress' },
+        { "name" : "Label", "label" : "Ready", 'key' : 'status' },
         { "name" : "Button", "label" : "Click" },
     ]
     
