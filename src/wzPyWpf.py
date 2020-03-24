@@ -594,9 +594,20 @@ def EzLayout(content):
 
 class EzWindow(Window):  
     def __init__(self,title="",width=800,height=600):
+        print('EzWindow.__init__()')
+        self.ctrl = None
+        self.stage = None
         self.createdHandler = None
-        self.SetTitle(title)
-        self.SetSize(width, height)
+        self.closeHandler = None
+        self.title = None
+        self.icon = None
+        self.width = 800
+        self.height = 600
+        self.menu = None
+        self.tool = None
+        self.status = None
+        self.content = None
+        
     def Run(self):
         self.box = EzVBox()
         if self.menu: self.box.AddItem(EzMenuBar(self.menu),expand=False)
@@ -608,11 +619,9 @@ class EzWindow(Window):
         self.Content = self.box.ctrl
         if self.createdHandler: self.createdHandler()           
         Application().Run(self) 
-    def SetTitle(self,title):
-        self.Title = title
-    def SetSize(self,width,height):
-        self.Width = width
-        self.Height = height
+    def SetTitle(self,title): self.Title = title
+    def SetSize(self,width,height): self.Width = width; self.Height = height
+    def SetIcon(self,icon): self.icon = icon
     def SetCreatedHandler(self,handler): self.createdHandler = handler
     def SetMenuBar(self,menu): self.menu = menu
     def SetToolBar(self,tool): self.tool = tool
@@ -753,7 +762,9 @@ app_content = [ # vbox
 
 
 if __name__ == "__main__":
-    appWin = EzWindow("ezWpfPython", 640,400)
+    appWin = EzWindow()
+    appWin.SetTitle("ezPyWPF")
+    appWin.SetSize(640,400)
     appWin.SetMenuBar(app_mainmenu)
     appWin.SetToolBar(app_tool)
     appWin.SetStatusBar(app_status)
