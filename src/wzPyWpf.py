@@ -5,18 +5,24 @@ clr.AddReferenceByName("PresentationCore, Version=3.0.0.0, Culture=neutral, Publ
 clr.AddReference('System.Data')
 
 import System.Uri
+import System.UriKind
 import System.Timers
 import System.Threading
 from System.Threading.Tasks import Task
 import System.Windows
 from System.Windows import Application
 from System.Windows import Window
+from System.Windows import DataFormats
 from System.Windows import Visibility
 from System.Windows import Thickness
 from System.Windows import TextWrapping
 from System.Windows import HorizontalAlignment
 from System.Windows import VerticalAlignment
-
+from System.Windows import MessageBox
+from System.Windows import MessageBoxButton
+from System.Windows import MessageBoxResult
+    
+from System.Windows.Controls import Border
 from System.Windows.Controls import StackPanel
 from System.Windows.Controls import Orientation
 
@@ -46,19 +52,28 @@ from System.Windows.Controls import ListView
 from System.Windows.Controls import ListViewItem
 from System.Windows.Controls import TreeView
 from System.Windows.Controls import TreeViewItem
-from System.Windows.Media import VisualTreeHelper
 from System.Windows.Controls import GridView
 from System.Windows.Controls import GridViewColumn
 from System.Windows.Controls import ProgressBar
 
 from System.Windows.Controls import ToolBar
+from System.Windows.Controls import ScrollViewer
+from System.Windows.Controls import ScrollBarVisibility
+from System.Windows.Controls import Canvas
 from System.Windows.Controls import Image
 from System.Windows import TextAlignment
-from System.Windows.Media import Stretch
-from System.Windows.Media.Imaging import BitmapImage
 
 from System.Windows.Controls.Primitives import StatusBar
 from System.Windows.Controls.Primitives import StatusBarItem
+
+from System.Windows.Media import Brushes
+from System.Windows.Media import Stretch
+from System.Windows.Media import VisualTreeHelper
+from System.Windows.Media.Imaging import BitmapImage
+from System.Windows.Media.Imaging import BitmapFrame
+
+from System.Windows.Shapes import Rectangle
+from System.Windows.Ink import Stroke
 
 from System.Windows.Data import Binding
 
@@ -67,6 +82,7 @@ from System.Data import DataTable
 from System.Data import DataView
 from System.Data import DataColumn
 from System.Type import GetType
+
 
 from Microsoft.Win32 import OpenFileDialog
 import System.IO
@@ -94,16 +110,20 @@ def DumpControlTable():
 #
 
 def EzAlertDialog(message,title=None):
-    from System.Windows import MessageBox
     if title: MessageBox.Show(message,title)
     else: MessageBox.Show(message)
 
 def EzYesNoDialog(message,title,icon=System.Windows.MessageBoxImage.Information):
-    return MessageBox.Show(message,title,MessageBoxButton.YesNo,icon)
+    rv = MessageBox.Show(message,title,MessageBoxButton.YesNo,icon)
+    if rv == MessageBoxResult.Yes: return True
+    else: return False
 
 def EzYesNoCancelDialog(message,title,icon=System.Windows.MessageBoxImage.Information):
-    return MessageBox.Show(message,title,MessageBoxButton.YesNoCancel,icon)
-
+    rv = MessageBox.Show(message,title,MessageBoxButton.YesNoCancel,icon)
+    if rv == MessageBoxResult.Yes: return True
+    elif rv == MessageBoxResult.No: return False
+    else: return None
+    
 def EzFileOpenDialog(initialFile=None,multiselect=False):
     dlg = OpenFileDialog()
     dlg.Multiselect = multiselect
@@ -142,7 +162,40 @@ class EzLabel(EzControl):
         if h.get('fontsize'): self.SetFontSize(h['fontsize'])
     def SetValue(self,text):
         self.ctrl.Content = text
-        
+
+class EzImageView(EzControl):
+    def __init__(self,h):
+        self.ctrl = Label()
+        self.Initialize(h)
+        self.image = Image()
+        self.image.HorizontalAlignment = HorizontalAlignment.Center
+        self.image.VerticalAlignment = VerticalAlignment.Center
+        if h.get('image'): self.image.Source = BitmapImage(System.Uri(h['image'],System.UriKind.Relative))
+        if h.get('stretch'): self.Stretch(h['stretch'])
+        else: self.StretchUniform()
+        if h.get('size'): self.image.Height = float(h['size']); self.image.Width = float(h['size'])
+        if h.get('scroll') and h['scroll']:
+            scroll = ScrollViewer()
+            scroll.HorizontalScrollBarVisibility = ScrollBarVisibility.Auto;
+            scroll.Content = self.image;
+            self.ctrl.Content = scroll
+        elif h.get('multiple') and h['multiple']:
+            stack = StackPanel()
+            stack.Orientation = Orientation.Horizontal
+            stack.Children.Add(self.image)
+            self.ctrl.Content = stack 
+        else:
+            self.ctrl.Content = self.image       
+    def StretchNone(self): self.image.Stretch = Stretch.None
+    def StretchFill(self): self.image.Stretch = Stretch.Fill
+    def StretchUniform(self): self.image.Stretch = Stretch.Uniform
+    def StretchUniformToFill(self): self.image.Stretch = Stretch.UniformToFill
+    def Stretch(self,stretch):
+        if stretch == 'none': self.StretchNone()
+        elif stretch == 'fill': self.StretchFill()
+        elif stretch == 'uniform': self.StretchUniform()
+        elif stretch == 'uniformfill': self.StretchUniformToFill()
+
 class EzButton(EzControl):
     def __init__(self,h):
         self.ctrl = Button()
@@ -342,6 +395,30 @@ class EzProgressBar(EzControl):
 # Containers
 #
 
+class EzBorderGrid():
+    def __init__(self):
+        self.grid = Grid()
+        self.ctrl = Border()
+        self.ctrl.HorizontalAlignment = HorizontalAlignment.Left
+        self.ctrl.VerticalAlignment = VerticalAlignment.Top
+        #border.BorderBrush = BorderBrush.Black
+        self.ctrl.BorderThickness = 2
+        self.ctrl.Content = self.grid
+    def AddRow(self,height=1,expand=False,span=1):
+        if expand: length = GridLength(height, GridUnitType.Star)
+        else:      length = GridLength(height, GridUnitType.Auto)
+        self.grid.RowDefinitions.Add(RowDefinition(Height = length))
+    def AddColumn(self,width=1,expand=False,span=1):
+        if expand: length = GridLength(width, GridUnitType.Star)
+        else:      length = GridLength(width, GridUnitType.Auto)
+        self.grid.ColumnDefinitions.Add(ColumnDefinition(Width = length))
+    def AddItem(self,item,row,col,rowspan=1,colspan=1):
+        Grid.SetRow(item, row);
+        Grid.SetColumn(item, col);
+        self.grid.Children.Add(item)
+        if rowspan > 1: item.SetValue(Grid.RowSpanProperty, rowspan);
+        if colspan > 1: item.SetValue(Grid.ColumnSpanProperty, colspan);
+        
 class EzGrid():
     def __init__(self):
         self.ctrl = Grid()
@@ -360,15 +437,22 @@ class EzGrid():
         if rowspan > 1: item.SetValue(Grid.RowSpanProperty, rowspan);
         if colspan > 1: item.SetValue(Grid.ColumnSpanProperty, colspan);
         
-class EzVBox(EzGrid):
+class EzVBox():
     def __init__(self):
-        self.ctrl = System.Windows.Controls.Grid()
+        self.ctrl = Grid()
+        self.ctrl.Margin = Thickness(1)
         self.rows = 0
-    def AddItem(self,item,height=1,expand=False):
+    def AddItem(self,item,height=1,expand=False,border=False):
         if expand: length = GridLength(height, GridUnitType.Star)
         else:      length = GridLength(height, GridUnitType.Auto)
         self.ctrl.RowDefinitions.Add(RowDefinition(Height = length))
         Grid.SetRow(item, self.rows);
+        if border:
+            rect = Rectangle()
+            rect.Stroke = Brushes.Gray
+            rect.Fill = Brushes.Transparent
+            Grid.SetRow(rect, self.rows);
+            self.ctrl.Children.Add(rect)
         self.ctrl.Children.Add(item)
         self.rows = self.rows + 1
     def AddSplitter(self,width=1):
@@ -385,15 +469,22 @@ class EzVBox(EzGrid):
         self.ctrl.Children.Add(item)
         self.rows = self.rows + 1
                  
-class EzHBox(EzGrid):
+class EzHBox():
     def __init__(self):
-        self.ctrl = System.Windows.Controls.Grid()
+        self.ctrl = Grid()
+        self.ctrl.Margin = Thickness(1)
         self.cols = 0
-    def AddItem(self,item,width=1,expand=False):
+    def AddItem(self,item,width=1,expand=False,border=False):
         if expand: length = GridLength(width, GridUnitType.Star)
         else:      length = GridLength(width, GridUnitType.Auto)
         self.ctrl.ColumnDefinitions.Add(ColumnDefinition(Width = length))
-        Grid.SetColumn(item, self.cols);
+        Grid.SetColumn(item, self.cols);        
+        if border:
+            rect = Rectangle()
+            rect.Stroke = Brushes.Gray
+            rect.Fill = Brushes.Transparent
+            Grid.SetColumn(rect, self.cols)
+            self.ctrl.Children.Add(rect)        
         self.ctrl.Children.Add(item)
         self.cols = self.cols + 1
     def AddSplitter(self,width=1):
@@ -409,7 +500,18 @@ class EzHBox(EzGrid):
         Grid.SetColumn(item, self.cols);
         self.ctrl.Children.Add(item)
         self.cols = self.cols + 1
-                        
+
+class EzBorder():
+    def __init__(self):
+        self.ctrl = Border()
+        self.ctrl.HorizontalAlignment = HorizontalAlignment.Left
+        self.ctrl.VerticalAlignment = VerticalAlignment.Top
+        self.ctrl.Background = Brushes.SkyBlue
+        self.ctrl.BorderBrush = Brushes.Black
+        self.ctrl.BorderThickness = Thickness(1)
+    def SetChild(self,ctrl):
+        self.ctrl.Child = ctrl
+        
 class EzBox():
     def __init__(self):
         self.ctrl = StackPanel()
@@ -436,13 +538,12 @@ class EzHSplitPane():
     def __init__(self,h):
         self.box = EzHBox()
         self.ctrl = self.box.ctrl
-        self.ctrl.Margin =  System.Windows.Thickness(15)
+        self.ctrl.Margin = Thickness(1)
         items = h.get('items')
         width = [ 1, 1 ]
         if h.get('first'):
             width[0] = float(h['first']) * 10
-            width[1] = 10 - width[0]
-        print( width[0], width[1] )    
+            width[1] = 10 - width[0] 
         self.box.AddItem(EzLayout(items[0]),width[0],expand=True)
         self.box.AddSplitter()
         self.box.AddItem(EzLayout(items[1]),width[1],expand=True)  
@@ -451,11 +552,15 @@ class EzVSplitPane():
     def __init__(self,h):
         self.box = EzVBox()
         self.ctrl = self.box.ctrl
-        self.ctrl.Margin =  System.Windows.Thickness(15)
+        self.ctrl.Margin =  System.Windows.Thickness(1)
         items = h.get('items')
-        self.box.AddItem(EzLayout(items[0]),expand=True)
+        height = [ 1, 1 ]
+        if h.get('first'):
+            height[0] = float(h['first']) * 10
+            height[1] = 10 - height[0] 
+        self.box.AddItem(EzLayout(items[0]),height[0],expand=True)
         self.box.AddSplitter()
-        self.box.AddItem(EzLayout(items[1]),expand=True)  
+        self.box.AddItem(EzLayout(items[1]),height[1],expand=True)  
 #
 # Window
 #
@@ -486,6 +591,32 @@ def StartThread(handler):
 
 def StartTask(handler):
     Task.Factory.StartNew(handler) 
+
+def DragEnter(sender, event):
+    if event.Data.GetDataPresent(DataFormats.FileDrop):
+        event.Effect = DragDropEffects.All
+    else:
+        event.Effect = DragDropEffects.None
+
+def DragOver(sender, event):
+    if event.Data.GetDataPresent(DataFormats.FileDrop):
+        event.Effect = DragDropEffects.Copy
+    
+def DragDropped(handler):
+    def DropHandler(sender, event):
+        if event.Data.GetDataPresent(DataFormats.FileDrop):
+            files = event.Data.GetData(DataFormats.FileDrop)
+            handler(files)
+    return DropHandler
+    
+def SetFileDropHandler(ctrl,handler):
+    ctrl.AllowDrop = True 
+    #ctrl.DragEnter += DragEnter
+    #ctrl.DragOver += DragOver
+    ctrl.Drop += DragDropped(handler)
+
+def ClipboardTextCopy(text):
+    Clipboard.SetData(DataFormats.Text, text);
     
 class EzMenu():
     def __init__(self,name,menu_table):
@@ -562,12 +693,15 @@ def EzLayout(content):
     for v in content:
         hbox = EzHBox()
         expand = False
+        border = 0
         for h in v:
             name = h.get('name')
             if not name:
                 if h.get('expand'): expand = h['expand']
+                if h.get('border'): border = h['border']
                 continue
             if   name == 'Label': f = EzLabel(h)
+            elif name == 'ImageView': f = EzImageView(h)
             elif name == 'Button': f = EzButton(h)
             elif name == 'ToggleButton': f = EzToggleButton(h)
             elif name == 'CheckBox': f = EzCheckBox(h)
@@ -584,12 +718,11 @@ def EzLayout(content):
             elif name == 'VSplit': f = EzVSplitPane(h)
             else: continue
             '''
-            elif name == 'ImageView': f = EzImageView(h,parent)
             elif name == 'ScrollImageView': f = EzScrollImageView(h,parent)
             elif name == 'ProgressBar': f = EzProgressBar(h)
             '''            
-            hbox.AddItem(f.ctrl,expand=h.get('expand'))
-        vbox.AddItem(hbox.ctrl,expand=expand)
+            hbox.AddItem(f.ctrl,expand=h.get('expand'),border=h.get('border'))
+        vbox.AddItem(hbox.ctrl,expand=expand,border=border)
     return vbox.ctrl
 
 class EzWindow(Window):  
@@ -621,12 +754,14 @@ class EzWindow(Window):
         Application().Run(self) 
     def SetTitle(self,title): self.Title = title
     def SetSize(self,width,height): self.Width = width; self.Height = height
-    def SetIcon(self,icon): self.icon = icon
-    def SetCreatedHandler(self,handler): self.createdHandler = handler
+    def SetIcon(self,icon): self.Icon = BitmapFrame.Create(System.Uri(icon, System.UriKind.RelativeOrAbsolute))
     def SetMenuBar(self,menu): self.menu = menu
     def SetToolBar(self,tool): self.tool = tool
     def SetStatusBar(self,status): self.status = status
     def SetContent(self,content): self.content = content
+    def SetCreatedHandler(self,handler): self.createdHandler = handler
+    def SetCloseHandler(self,handler): self.Closing += handler
+    def SetFileDropHandler(self,handler): SetFileDropHandler(self,handler)
         
 #
 # Application
@@ -684,8 +819,14 @@ def taskHandler():
 def timerHandler(sender,args):
     global progress_value
     print(progress_value)
+
+def onFileDrop(files):
+    print('onFileDrop',files)
+    ctrl = GetControl('textfile')
+    ctrl.SetValue(files[0])
     
 def onCreated():
+    #SetFileDropHandler(GetControl('textfile').ctrl,onFileDrop)
     listview = GetControl('table')
     listview.AddItem( { "col1":"row1-1", "col2":"row1-2" } )
     listview.AddItem( { "col1":"row2-1", "col2":"row2-2" } )
@@ -697,9 +838,13 @@ def onCreated():
     item = tree.AddRootItem("Item2")
     tree.AddItem("Item2-1",item)
     tree.AddItem("Item2-2",item)
-    StartTimer(timerHandler,200)
+    StartTimer(timerHandler,1000)
     StartThread(threadHandler)
     StartTask(taskHandler)
+
+def onClosing(sender,event):
+    if not EzYesNoDialog("Do you want to quie ?","Quit"):
+        event.Cancel = True
     
 app_mainmenu = [
     { 'name' : "File",
@@ -736,10 +881,12 @@ tab3 = [[ { "name" : "Table", "columns" : [ "col1", "col2" ], 'widths' : [ 100, 
         { 'expand' : True } ]]
 tab4 = [[ { "name" : "TreeView", "key" : "tree", 'handler' : onTreeView,"expand" : True },
           { "expand" : True }, ]]
+tab5 = [[ { "name" : "ImageView", 'image' : "icon/Lenna.png", "stretch" : "uniform", "scroll" : True, "expand" : True },
+          { "expand" : True }, ]]
 split1 = [[
-        { "name" : "TabPane", "labels" : [ "Text", "List", "Table", "Tree" ], "items" : [ tab1, tab2, tab3, tab4 ], "expand" : True },
+        { "name" : "TabPane", "labels" : [ "Text", "List", "Table", "Tree", "Image" ], "items" : [ tab1, tab2, tab3, tab4, tab5 ], "expand" : True },
         { "expand" : True }, ]]
-split2 = [[ { "name" : "TextArea", 'key' : 'textarea', "expand" : True },
+split2 = [[ { "name" : "TextArea", 'key' : 'textarea', "expand" : True,  },
             { "expand" : True }, ]]
       
 app_content = [ # vbox
@@ -755,19 +902,24 @@ app_content = [ # vbox
         { "name" : "ToggleButton", "label" : "Toggle", 'key' : 'toggle', 'handler' : onToggle },
     ], 
     [ # hbox
-        { "name" : "HSplit", "items" : [ split1, split2 ] , "first" : 0.5, "expand" : True},
-        { "expand" : True },
+        { "name" : "HSplit", "items" : [ split1, split2 ] , "first" : 0.5, "expand" : True, 'border' : False},
+        { "expand" : True, 'border' : True },
     ],     
 ]
 
 
 if __name__ == "__main__":
+    global appWin
     appWin = EzWindow()
     appWin.SetTitle("ezPyWPF")
+    appWin.SetIcon("./icon/Lenna.png")
     appWin.SetSize(640,400)
     appWin.SetMenuBar(app_mainmenu)
     appWin.SetToolBar(app_tool)
     appWin.SetStatusBar(app_status)
     appWin.SetContent(app_content)
     appWin.SetCreatedHandler(onCreated)  
+    appWin.SetCloseHandler(onClosing)
+    appWin.SetFileDropHandler(onFileDrop)
     appWin.Run()
+
