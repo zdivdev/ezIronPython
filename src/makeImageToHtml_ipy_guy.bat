@@ -1,0 +1,1 @@
+ipyc /main:ImageToHtml_ipy_guy.py /standalone /embed /target:winexe
